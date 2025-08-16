@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pemetaan UPT – Tambah Pin Kota di Indonesia</title>
+
+  <!-- Leaflet CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+
+  <style>
+    :root {
+      --bg: #0f172a;          /* slate-900 */
+      --card: #111827;        /* gray-900 */
+      --muted: #9ca3af;       /* gray-400 */
+      --text: #e5e7eb;        /* gray-200 */
+      --accent: #22c55e;      /* green-500 */
+      --accent-2: #38bdf8;    /* sky-400 */
+      --danger: #f43f5e;      /* rose-500 */
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Noto Sans", "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background: radial-gradient(1200px 700px at 20% 0%, #111827 0%, #0b1220 40%, #0a0f1a 100%);
+      color: var(--text);
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+    }
+    header { padding: 20px 16px 8px; }
+    h1 { margin: 0 0 4px 0; font-size: 1.4rem; font-weight: 700; letter-spacing: 0.3px; }
+    p.subtitle { margin: 0; color: var(--muted); font-size: 0.95rem; }
+
+    .container { display: grid; gap: 12px; padding: 12px 16px 16px; }
+    @media (min-width: 960px) {
+      .container { grid-template-columns: 360px 1fr; align-items: start; height: calc(100vh - 120px); }
+    }
+
+    .card { background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01)); border: 1px solid rgba(148,163,184,0.18); border-radius: 18px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); backdrop-filter: blur(8px); }
+
+    /* Form */
+    form { padding: 16px; display: grid; gap: 12px; }
+    .field { display: grid; gap: 6px; }
+    label { font-size: 0.9rem; color: var(--muted); }
+    input[type="text"] {
+      width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(148,163,184,0.25);
+      background: #0b1220; color: var(--text); outline: none; transition: box-shadow .2s, border-color .2s;
+    }
+    input[type="text"]:focus { border-color: var(--accent-2); box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25); }
+
+    .row { display: grid; gap: 10px; grid-template-columns: 1fr; }
+    @media (min-width: 540px) { .row { grid-template-columns: 1fr 1fr; } }
+
+    .actions { display: flex; gap: 10px; align-items: center; }
+    button {
+      appearance: none; border: none; border-radius: 12px; padding: 10px 14px; font-weight: 600; cursor: pointer; transition: transform .06s ease, background .2s ease, opacity .2s;
+    }
+    button:active { transform: translateY(1px); }
+    .btn-primary { background: linear-gradient(135deg, var(--accent-2), #60a5fa); color: #0b1220; }
+    .btn-secondary { background: #0b1220; color: var(--text); border: 1px solid rgba(148,163,184,0.25); }
+
+    .note { font-size: 0.85rem; color: var(--muted); line-height: 1.4; }
+    .error { color: var(--danger); font-size: 0.9rem; }
+    .ok { color: var(--accent); font-size: 0.9rem; }
+
+    /* Map */
+    #map { width: 100%; height: 60vh; border-radius: 18px; }
+    @media (min-width: 960px) { #map { height: calc(100vh - 140px); } }
+
+    footer { padding: 8px 16px 16px; color: var(--muted); font-size: 0.85rem; }
+    .attribution a { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Pemetaan Partisipan UPT</h1>
+    <p class="subtitle">Masukkan identitas dan kota, lalu tambahkan pin otomatis di peta Indonesia.</p>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <form id="form">
+        <div class="field">
+          <label for="nama">Nama</label>
+          <input id="nama" name="nama" type="text" placeholder="Nama lengkap" required />
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="upt">Asal UPT</label>
+            <input id="upt" name="upt" type="text" placeholder="Contoh: Stasiun Klimatologi XYZ" required />
+          </div>
+          <div class="field">
+            <label for="kota">Kota</label>
+            <input id="kota" name="kota" type="text" placeholder="Contoh: Bandung" required />
+          </div>
+        </div>
+        <div class="actions">
+          <button type="submit" class="btn-primary" id="submitBtn">Tambahkan Pin (Enter)</button>
+          <button type="button" class="btn-secondary" id="resetBtn">Reset Form</button>
+        </div>
+        <div id="status" aria-live="polite" class="note">Tekan Enter setelah mengisi. Jika kota tidak ditemukan, Anda bisa klik peta untuk menaruh pin manual.</div>
+      </form>
+    </section>
+
+    <section class="card" style="padding:12px;">
+      <div id="map" role="region" aria-label="Peta Indonesia"></div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="attribution">
+      Data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> kontributor. Geocoding oleh Nominatim. Peta © Leaflet.
+    </div>
+  </footer>
+
+  <!-- Leaflet JS -->
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+
+  <script>
+    // --- 1) Inisialisasi Peta ---
+    const map = L.map('map', { zoomControl: true });
+    const indoCenter = [-2.5, 117];
+    map.setView(indoCenter, 5);
+
+    // Basemap OSM
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap kontributor'
+    }).addTo(map);
+
+    // Simpan semua marker
+    const markers = [];
+
+    // --- 2) Utilitas ---
+    const form = document.getElementById('form');
+    const submitBtn = document.getElementById('submitBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const statusEl = document.getElementById('status');
+
+    function setStatus(text, type = 'note') {
+      statusEl.className = type === 'error' ? 'error' : (type === 'ok' ? 'ok' : 'note');
+      statusEl.textContent = text;
+    }
+
+    function fitAllMarkers() {
+      if (markers.length === 0) return;
+      const group = L.featureGroup(markers);
+      map.fitBounds(group.getBounds().pad(0.2));
+    }
+
+    function addMarker(lat, lon, { nama, upt, kota }) {
+      const marker = L.marker([lat, lon]).addTo(map);
+      const popupHtml = `
+        <strong>${nama}</strong><br/>
+        UPT: ${upt}<br/>
+        Kota: ${kota}
+      `;
+      marker.bindPopup(popupHtml).openPopup();
+      markers.push(marker);
+      return marker;
+    }
+
+    async function geocodeKota(kota) {
+      // Geocoding via Nominatim (batasi ke Indonesia)
+      const params = new URLSearchParams({
+        q: kota + ', Indonesia',
+        format: 'json',
+        addressdetails: '1',
+        countrycodes: 'id',
+        limit: '1'
+      });
+      const url = `https://nominatim.openstreetmap.org/search?${params.toString()}`;
+      const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+      if (!res.ok) throw new Error('Gagal mengakses layanan geocoding');
+      const data = await res.json();
+      return Array.isArray(data) && data.length ? data[0] : null;
+    }
+
+    // --- 3) Submit Form ---
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const nama = (document.getElementById('nama').value || '').trim();
+      const upt = (document.getElementById('upt').value || '').trim();
+      const kota = (document.getElementById('kota').value || '').trim();
+
+      if (!nama || !upt || !kota) {
+        setStatus('Lengkapi semua kolom: Nama, Asal UPT, dan Kota.', 'error');
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Memproses…';
+      setStatus('Mencari koordinat kota…');
+
+      try {
+        const result = await geocodeKota(kota);
+        if (!result) {
+          setStatus('Kota tidak ditemukan. Anda bisa klik langsung di peta untuk menaruh pin.', 'error');
+          return;
+        }
+        const lat = parseFloat(result.lat);
+        const lon = parseFloat(result.lon);
+        addMarker(lat, lon, { nama, upt, kota });
+        map.setView([lat, lon], 8);
+        fitAllMarkers();
+        setStatus('Pin berhasil ditambahkan.', 'ok');
+        form.reset();
+        document.getElementById('nama').focus();
+      } catch (err) {
+        console.error(err);
+        setStatus('Terjadi kesalahan saat geocoding. Coba lagi atau klik peta untuk menaruh pin.', 'error');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Tambahkan Pin (Enter)';
+      }
+    });
+
+    // --- 4) Reset Form ---
+    resetBtn.addEventListener('click', () => {
+      form.reset();
+      setStatus('Form telah direset.');
+      document.getElementById('nama').focus();
+    });
+
+    // --- 5) Klik Peta untuk Pin Manual ---
+    map.on('click', (e) => {
+      const nama = (document.getElementById('nama').value || 'Tanpa Nama').trim();
+      const upt = (document.getElementById('upt').value || 'UPT Tidak Diisi').trim();
+      const kota = (document.getElementById('kota').value || `Koordinat ${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`).trim();
+      addMarker(e.latlng.lat, e.latlng.lng, { nama, upt, kota });
+      fitAllMarkers();
+      setStatus('Pin manual ditambahkan melalui klik peta.', 'ok');
+    });
+
+    // Aksesibilitas: submit dengan Enter dari input terakhir
+    document.getElementById('kota').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        form.requestSubmit();
+      }
+    });
+  </script>
+</body>
+</html>
